@@ -115,6 +115,7 @@ describe DashboardHelper do
         mapped_courses = map_courses_for_menu(courses)
         expect(mapped_courses.map {|h| h[:id]}).to eq [course3.id, course2.id, course1.id]
       end
+
       it "handles sorting even when positions are nil" do
         course1 = @account.courses.create!
         course2 = @account.courses.create!

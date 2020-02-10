@@ -871,38 +871,6 @@ describe GradebooksController do
             expect(allow_final_grade_override).to eq false
           end
 
-          # TODO: remove these specs once we no longer need the fallback behavior (GRADE-2124)
-          context "when the course setting is not set" do
-            before(:each) do
-              settings_without_override = @course.settings.dup
-              settings_without_override.delete(:allow_final_grade_override)
-
-              @course.settings = settings_without_override
-              @course.save!
-            end
-
-            it "sets allow_final_grade_override to true if the current user's preference is true" do
-              @teacher.preferences.deep_merge!({
-                gradebook_settings: {@course.id => {"show_final_grade_overrides" => "true"}}
-              })
-              get :show, params: { course_id: @course.id }
-              expect(allow_final_grade_override).to eq true
-            end
-
-            it "sets allow_final_grade_override to false if the current user's preference is false" do
-              @teacher.preferences.deep_merge!({
-                gradebook_settings: {@course.id => {"show_final_grade_overrides" => "false"}}
-              })
-              get :show, params: { course_id: @course.id }
-              expect(allow_final_grade_override).to eq false
-            end
-
-            it "sets allow_final_grade_override to false if the current user's preference does not exist" do
-              get :show, params: { course_id: @course.id }
-              expect(allow_final_grade_override).to eq false
-            end
-          end
-
           it "sets allow_final_grade_override to false when 'Final Grade Override' is not enabled" do
             @course.disable_feature!(:final_grades_override)
             get :show, params: { course_id: @course.id }
@@ -1626,6 +1594,60 @@ describe GradebooksController do
       assignment_model
       post 'submissions_zip_upload', params: {:course_id => @course.id, :assignment_id => @assignment.id, :submissions_zip => 'dummy'}
       assert_unauthorized
+    end
+  end
+
+  describe "GET 'show_submissions_upload'" do
+    before :once do
+      course_factory
+      assignment_model
+    end
+
+    before :each do
+      Account.site_admin.enable_feature!(:submissions_reupload_status_page)
+      user_session(@teacher)
+    end
+
+    it "assigns the @assignment variable for the template" do
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      expect(assigns[:assignment]).to eql(@assignment)
+    end
+
+    it "assigns the @progress variable for the template" do
+      progress = Progress.new(context: @assignment, completion: 100)
+      allow_any_instance_of(Assignment).to receive(:submission_reupload_progress).and_return(progress)
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      expect(assigns[:progress]).to eql(progress)
+    end
+
+    it "redirects to the assignment page when the course does not allow gradebook uploads" do
+      allow_any_instance_of(Course).to receive(:allows_gradebook_uploads?).and_return(false)
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      expect(response).to redirect_to course_assignment_url(@course, @assignment)
+    end
+
+    it "requires authentication" do
+      remove_user_session
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      assert_unauthorized
+    end
+
+    it "grants authorization to teachers" do
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      expect(response).to be_ok
+    end
+
+    it "returns unauthorized for students" do
+      user_session(@student)
+      get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      assert_unauthorized
+    end
+
+    it "returns not_found when the 'submissions_reupload_status_page' feature is off" do
+      Account.site_admin.disable_feature!(:submissions_reupload_status_page)
+      assert_page_not_found do
+        get :show_submissions_upload, params: {course_id: @course.id, assignment_id: @assignment.id}
+      end
     end
   end
 
@@ -2473,6 +2495,30 @@ describe GradebooksController do
       it "is not set if New Gradebook is not enabled" do
         get "speed_grader", params: {course_id: @course, assignment_id: @assignment}
         expect(assigns[:js_env]).not_to include(:post_policies_enabled)
+      end
+    end
+
+    describe "new_gradebook_plagiarism_icons_enabled" do
+      it "is set to true if New Gradebook is on and New Gradebook Plagiarism Icons are on" do
+        @course.enable_feature!(:new_gradebook)
+        @course.root_account.enable_feature!(:new_gradebook_plagiarism_indicator)
+
+        get "speed_grader", params: {course_id: @course, assignment_id: @assignment}
+        expect(assigns[:js_env][:new_gradebook_plagiarism_icons_enabled]).to be true
+      end
+
+      it "is not set if New Gradebook is on but the New Gradebook Plagiarism Icons are off" do
+        @course.enable_feature!(:new_gradebook)
+
+        get "speed_grader", params: {course_id: @course, assignment_id: @assignment}
+        expect(assigns[:js_env]).not_to include(:new_gradebook_plagiarism_icons_enabled)
+      end
+
+      it "is not set if New Gradebook is off" do
+        @course.root_account.enable_feature!(:new_gradebook_plagiarism_indicator)
+
+        get "speed_grader", params: {course_id: @course, assignment_id: @assignment}
+        expect(assigns[:js_env]).not_to include(:new_gradebook_plagiarism_icons_enabled)
       end
     end
   end

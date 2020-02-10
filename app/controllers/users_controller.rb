@@ -992,6 +992,9 @@ class UsersController < ApplicationController
   #         "unlock_at"=>nil,
   #         "course_id"=>12942,
   #         "submission_types"=>["none"],
+  #         // [DEPRECATED] This property is deprecated, effective 2020-06-03 (notice given 2020-02-26):
+  #         // Use hidden_submissions_count to determine whether an assignment has feedback
+  #         // that has not been posted to students.
   #         "muted"=>false,
   #         "needs_grading_count"=>0,
   #         "html_url"=>"http://www.example.com/courses/12942/assignments/9729"
@@ -1247,7 +1250,8 @@ class UsersController < ApplicationController
   #   !!!javascript
   #   "permissions": {
   #    "can_update_name": true, // Whether the user can update their name.
-  #    "can_update_avatar": false // Whether the user can update their avatar.
+  #    "can_update_avatar": false, // Whether the user can update their avatar.
+  #    "limit_parent_app_web_access": false // Whether the user can interact with Canvas web from the Canvas Parent app.
   #   }
   #
   # @argument include[] [String, "uuid"]

@@ -18,9 +18,9 @@
 
 class LearningOutcomeGroup < ActiveRecord::Base
   include Workflow
-  include OutcomeAttributes
   include MasterCourses::Restrictor
   restrict_columns :state, [:workflow_state]
+  self.ignored_columns = %i[migration_id_2 vendor_guid_2]
 
   belongs_to :learning_outcome_group
   has_many :child_outcome_groups, :class_name => 'LearningOutcomeGroup', :foreign_key => "learning_outcome_group_id"
@@ -182,7 +182,11 @@ class LearningOutcomeGroup < ActiveRecord::Base
         group = scope.build :title => context.try(:name) || 'ROOT'
         group.building_default = true
         Shackles.activate(:master) do
-          group.save!
+          # during course copies/imports, observe may be disabled but import job will
+          # not be aware of this lazy object creation
+          ActiveRecord::Base.observers.enable LiveEventsObserver do
+            group.save!
+          end
         end
       end
       group

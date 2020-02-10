@@ -524,6 +524,13 @@ describe FilesController do
         get 'show', params: {:user_id => @student.id, :id => @attachment.id, :inline => 1}
         expect(response).to be_successful
       end
+
+      it "is successful when viewing as an admin even if locked" do
+        @file.locked = true
+        @file.save!
+        get 'show', params: {:course_id => @course.id, :id => @file.id}
+        expect(response).to be_successful
+      end
     end
 
     describe "canvadoc_session_url" do
@@ -1238,6 +1245,12 @@ describe FilesController do
         post "api_capture", params: params
         assert_status(201)
         expect(folder.attachments.first).not_to be_nil
+      end
+
+      it "should populate the md5 column with the instfs sha512" do
+        post "api_capture", params: params.merge(sha512: 'deadbeef')
+        assert_status(201)
+        expect(folder.attachments.first.md5).to eq 'deadbeef'
       end
 
       it "should include the attachment json in the response" do

@@ -155,7 +155,8 @@ class ApplicationController < ActionController::Base
           DOMAIN_ROOT_ACCOUNT_ID: @domain_root_account.try(:global_id),
           k12: k12?,
           use_responsive_layout: use_responsive_layout?,
-          use_rce_enhancements: @context.try(:feature_enabled?, :rce_enhancements),
+          use_rce_enhancements: (@context.is_a?(User) ? @domain_root_account : @context).try(:feature_enabled?, :rce_enhancements),
+          rce_auto_save: @context.try(:feature_enabled?, :rce_auto_save),
           DIRECT_SHARE_ENABLED: @domain_root_account.try(:feature_enabled?, :direct_share),
           help_link_name: help_link_name,
           help_link_icon: help_link_icon,
@@ -168,6 +169,9 @@ class ApplicationController < ActionController::Base
             collapse_global_nav: @current_user.try(:collapse_global_nav?),
             show_feedback_link: show_feedback_link?
           },
+          FEATURES: {
+            assignment_attempts: Account.site_admin.feature_enabled?(:assignment_attempts)
+          }
         }
         @js_env[:current_user] = @current_user ? Rails.cache.fetch(['user_display_json', @current_user].cache_key, :expires_in => 1.hour) { user_display_json(@current_user, :profile, [:avatar_is_fallback]) } : {}
         @js_env[:page_view_update_url] = page_view_path(@page_view.id, page_view_token: @page_view.token) if @page_view
@@ -185,6 +189,7 @@ class ApplicationController < ActionController::Base
         end
 
         @js_env[:lolcalize] = true if ENV['LOLCALIZE']
+        @js_env[:rce_auto_save_max_age_ms] = Setting.get('rce_auto_save_max_age_ms', 1.hour.to_i * 1000).to_i if @js_env[:rce_auto_save]
       end
     end
 
@@ -401,8 +406,10 @@ class ApplicationController < ActionController::Base
   def tool_dimensions
     tool_dimensions = {selection_width: '100%', selection_height: '100%'}
 
+    link_settings = @tag&.link_settings || {}
+
     tool_dimensions.each do |k, v|
-      tool_dimensions[k] = @tool.settings[k] || v
+      tool_dimensions[k] = link_settings[k.to_s] || @tool.settings[k] || v
       tool_dimensions[k] = tool_dimensions[k].to_s << 'px' unless tool_dimensions[k].to_s =~ /%|px/
     end
 

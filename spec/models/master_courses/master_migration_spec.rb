@@ -323,6 +323,33 @@ describe MasterCourses::MasterMigration do
       expect(qq3_to.reload).to_not be_deleted
     end
 
+    it "should not restore quiz questions deleted downstream (unless locked)" do
+      @copy_to = course_factory
+      sub = @template.add_child_course!(@copy_to)
+
+      quiz = @copy_from.quizzes.create!
+      qq = quiz.quiz_questions.create!(:question_data => {'question_name' => 'test question', 'question_type' => 'essay_question'})
+      run_master_migration
+
+      quiz_to = @copy_to.quizzes.where(:migration_id => mig_id(quiz)).first
+      qq_to = quiz_to.quiz_questions.where(:migration_id => mig_id(qq)).first
+
+      qq_to.destroy
+      Timecop.freeze(2.minutes.from_now) do
+        quiz.touch # re-sync
+      end
+      run_master_migration
+      expect(quiz_to.quiz_questions.active.exists?).to eq false # didn't recreate the question
+
+      Timecop.freeze(4.minutes.from_now) do
+        @template.content_tag_for(quiz).update_attribute(:restrictions, {:content => true})
+      end
+      run_master_migration
+
+      expect(quiz_to.quiz_questions.active.exists?).to eq true # new question but it has the same content
+      expect(qq_to.reload).to be_deleted # original doesn't get restored because it just made a new question instead /shrug
+    end
+
     it "should sync deleted quiz groups (unless changed downstream)" do
       @copy_to = course_factory
       sub = @template.add_child_course!(@copy_to)
@@ -1891,8 +1918,6 @@ describe MasterCourses::MasterMigration do
       @copy_to = course_factory
       sub = @template.add_child_course!(@copy_to)
 
-      allow(AcademicBenchmark).to receive(:use_new_guid_columns?).and_return(true) # what is this
-
       lo = @copy_from.created_learning_outcomes.new(:context => @copy_from, :short_description => "whee", :workflow_state => 'active')
       lo.data = {:rubric_criterion=>{:mastery_points=>2, :ratings=>[{:description=>"e", :points=>50}, {:description=>"me", :points=>2},
         {:description=>"Does Not Meet Expectations", :points=>0.5}], :description=>"First outcome", :points_possible=>5}}
@@ -1904,7 +1929,7 @@ describe MasterCourses::MasterMigration do
 
       run_master_migration
 
-      lo_to = @copy_to.created_learning_outcomes.where(:migration_id_2 => mig_id(lo)).first # what is that
+      lo_to = @copy_to.created_learning_outcomes.where(:migration_id => mig_id(lo)).first
 
       rub = Rubric.new(:context => @copy_from)
       rub.data = [{

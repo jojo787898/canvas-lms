@@ -536,6 +536,15 @@
     "links_14b70841": {
         "message": "Liens"
     },
+    "list_collapsed_9ac35920": {
+        "message": "Liste réduite."
+    },
+    "list_collapsed_dde87718": {
+        "message": "Liste réduite"
+    },
+    "list_expanded_efec2d0": {
+        "message": "Liste développée."
+    },
     "load_more_35d33c7": {
         "message": "Charger plus"
     },
@@ -685,6 +694,9 @@
     },
     "opportunities_popup_f6703842": {
         "message": "Fenêtre contextuelle des possibilités"
+    },
+    "option_selected_list_collapsed_e00180ff": {
+        "message": "{ option } sélectionné. Liste réduite."
     },
     "optional_add_course_ef0d70fc": {
         "message": "Facultatif : Ajouter un cours"
@@ -914,6 +926,9 @@
     "there_are_no_points_associated_with_this_item_449c712a": {
         "message": "Il n''y a aucun point associé à ce élément"
     },
+    "though_your_video_will_have_the_correct_title_in_t_90e427f3": {
+        "message": "Bien que votre vidéo ait le bon titre dans le navigateur, nous n''avons pas réussi à la mettre à jour dans la base de données."
+    },
     "time_2b5aac58": {
         "message": "Heure"
     },
@@ -1001,6 +1016,9 @@
     "url_22a5f3b8": {
         "message": "URL"
     },
+    "use_arrow_keys_to_navigate_options_2021cc50": {
+        "message": "Utiliser les touches directionnelles pour naviguer entre les options."
+    },
     "used_by_screen_readers_to_describe_the_content_of__b1e76d9e": {
         "message": "Utilisé par les lecteurs d''écran pour décrire le contenu d''une image"
     },
@@ -1009,6 +1027,9 @@
     },
     "user_documents_c206e61f": {
         "message": "Documents d''utilisateur"
+    },
+    "user_files_78e21703": {
+        "message": "Fichiers utilisateur"
     },
     "user_images_b6490852": {
         "message": "Images d'' utilisateurs"

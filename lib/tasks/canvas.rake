@@ -18,6 +18,9 @@ end
 namespace :canvas do
   desc "Compile javascript and css assets."
   task :compile_assets do |t, args|
+    # Make sure we have an up to date app/jsx/fragmentTypes.json file created
+    # (for apollo client js code / cache)
+    Rake::Task['graphql:schema'].invoke
 
     # opt out
     npm_install = ENV["COMPILE_ASSETS_NPM_INSTALL"] != "0"
@@ -116,6 +119,17 @@ namespace :canvas do
     end
 
     load_tree(nil, ConfigFile.load('dynamic_settings'))
+  end
+
+  desc "Initialize vault"
+  task :seed_vault => [:environment] do
+    Canvas::Vault.api_client.sys.mount(Canvas::Vault.kv_mount, 'kv', 'Application secrets for canvas', {
+      options: { version: 1 },
+      config: {
+        # In prod this is higher, but for dev, a low ttl is more useful
+        default_lease_ttl: '10s'
+      }
+    })
   end
 end
 

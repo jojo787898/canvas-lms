@@ -623,22 +623,54 @@ class GradebooksController < ApplicationController
 
   def submissions_zip_upload
     return unless authorized_action(@context, @current_user, :manage_grades)
+
+    assignment = @context.assignments.active.find(params[:assignment_id])
+
     unless @context.allows_gradebook_uploads?
-      flash[:error] = t('errors.not_allowed', "This course does not allow score uploads.")
-      redirect_to named_context_url(@context, :context_assignment_url, @assignment.id)
+      flash[:error] = t("This course does not allow score uploads.")
+      redirect_to named_context_url(@context, :context_assignment_url, assignment.id)
       return
     end
-    @assignment = @context.assignments.active.find(params[:assignment_id])
+
     if !params[:submissions_zip] || params[:submissions_zip].is_a?(String)
-      flash[:error] = t('errors.missing_file', "Could not find file to upload")
-      redirect_to named_context_url(@context, :context_assignment_url, @assignment.id)
+      flash[:error] = t("Could not find file to upload")
+      redirect_to named_context_url(@context, :context_assignment_url, assignment.id)
       return
     end
-    @comments, @failures = @assignment.generate_comments_from_files(params[:submissions_zip].path, @current_user)
+
+    if Account.site_admin.feature_enabled?(:submissions_reupload_status_page)
+      submission_zip_params = {uploaded_data: params[:submissions_zip]}
+      assignment.generate_comments_from_files_later(submission_zip_params, @current_user)
+
+      redirect_to named_context_url(@context, :submissions_upload_context_gradebook_url, assignment.id)
+      return
+    end
+
+    @assignment = assignment
+    @comments, @failures = @assignment.generate_comments_from_files_legacy(params[:submissions_zip].path, @current_user)
     flash[:notice] = t('notices.uploaded',
                        { :one => "Files and comments created for 1 submission",
                          :other => "Files and comments created for %{count} submissions" },
                        :count => @comments.length)
+  end
+
+  def show_submissions_upload
+    return render status: :not_found unless Account.site_admin.feature_enabled?(:submissions_reupload_status_page)
+
+    return unless authorized_action(@context, @current_user, :manage_grades)
+
+    @assignment = @context.assignments.active.find(params[:assignment_id])
+
+    unless @context.allows_gradebook_uploads?
+      flash[:error] = t("This course does not allow score uploads.")
+      redirect_to named_context_url(@context, :context_assignment_url, @assignment.id)
+      return
+    end
+
+    @progress = @assignment.submission_reupload_progress
+
+    css_bundle :show_submissions_upload
+    render :show_submissions_upload
   end
 
   def speed_grader
@@ -710,6 +742,9 @@ class GradebooksController < ApplicationController
         if new_gradebook_enabled?
           env[:selected_section_id] = gradebook_settings.dig(@context.id, 'filter_rows_by', 'section_id')
           env[:post_policies_enabled] = true if @context.post_policies_enabled?
+          if @context.root_account.feature_enabled?(:new_gradebook_plagiarism_indicator)
+            env[:new_gradebook_plagiarism_icons_enabled] = true
+          end
         end
 
         if @assignment.quiz
@@ -888,16 +923,6 @@ class GradebooksController < ApplicationController
   def new_gradebook_env
     graded_late_submissions_exist = @context.submissions.graded.late.exists?
 
-    # Prefer the course setting, but check the user's preferences if the
-    # course setting doesn't exist
-    # TODO: remove the fallback to user preferences (GRADE-2124)
-    allow_final_grade_override = if @context.settings.include?(:allow_final_grade_override)
-      @context.allow_final_grade_override?
-    else
-      user_preference = @current_user.preferences.dig(:gradebook_settings, @context.id, "show_final_grade_overrides")
-      value_to_boolean(user_preference)
-    end
-
     visible_sections = @context.sections_visible_to(@current_user)
 
     new_gradebook_options = {
@@ -905,7 +930,7 @@ class GradebooksController < ApplicationController
       colors: gradebook_settings.fetch(:colors, {}),
 
       course_settings: {
-        allow_final_grade_override: allow_final_grade_override,
+        allow_final_grade_override: @context.allow_final_grade_override?,
         filter_speed_grader_by_student_group: @context.filter_speed_grader_by_student_group?
       },
 
